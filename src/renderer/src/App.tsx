@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { FluentProvider, Button, makeStyles, shorthands } from '@fluentui/react-components'
 import { darkTheme } from './settings/theme'
 
@@ -12,25 +12,25 @@ const useStyle = makeStyles({
 
 function App(): JSX.Element {
   const styles = useStyle()
-
+  let webc;
   const webcamRef = useRef<HTMLVideoElement>(null)
   const webcamStream = useRef<MediaStream | null>(null)
 
-  const [webcam, setWebcam] = useState<MediaStream | null>()
+  // const [webcam, setWebcam] = useState<MediaStream | null>()
 
-  const handleStopWebcam = () => {
-    // webcam?.getTracks().forEach((tracks) => {
-    //   console.log(tracks)
-    //   tracks.stop()
-    // })
-    console.log(webcam?.getTracks())
-  }
+  const handleStopWebcam = useCallback(() => {
+    webcamStream.current?.getTracks().forEach((tracks) => {
+      console.log(tracks)
+      tracks.stop()
+    })
+    console.log(webcamStream.current?.getTracks())
+  }, [webcamStream])
 
   const handleStartWebcam = () => {
-    webcam?.getTracks().forEach((tracks) => {
+    webc?.getTracks().forEach((tracks) => {
       tracks
     })
-    console.log(webcam)
+    console.log(webc)
   }
 
   useEffect(() => {
@@ -40,7 +40,9 @@ function App(): JSX.Element {
         .getUserMedia({ video: { width: 1080 }, audio: false })
         .then((stream) => {
           if (webcamRef.current) webcamRef.current.srcObject = stream
-          setWebcam(stream)
+          if(webcamStream.current) webcamStream.current = stream
+          // setWebcam(stream)
+          webc = stream
         })
     } else {
       console.log('Não Suportado')
