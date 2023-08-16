@@ -36,6 +36,9 @@ function App(): JSX.Element {
   const [videoMediaRecorder, setVideoMediaRecorder] = useState<MediaRecorder>()
   const [videoChunks, setVideoChuncks] = useState<Blob[]>([])
 
+  let  vChunks= []
+  let vdStream
+
   const handleStartWebcam = useCallback(
     (micId) => {
       if (navigator && navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices) {
@@ -52,6 +55,7 @@ function App(): JSX.Element {
           .then((stream) => {
             if (webcamRef.current) webcamRef.current.srcObject = stream
             setVideoStream(stream)
+            vdStream = stream
             setIsWebcamOpened(true)
           })
       } else {
@@ -71,12 +75,15 @@ function App(): JSX.Element {
     }
   }, [videoStream, isWebcamOpened])
 
-  const handleVideoStartRecord = useCallback(() => {
+  const handleVideoStartRecord = (st) => {
     console.log(videoMediaRecorder)
-    if (videoMediaRecorder) {
-      videoMediaRecorder.start()
-    }
-  }, [videoMediaRecorder, isRecording, isWebcamOpened])
+    
+  }
+
+  const setRrecording = ():void => {
+    setIsRording(!isRecording)
+    handleStartWebcam()
+  }
 
   const handleVideoStopRecording = useCallback(() => {
     if (videoMediaRecorder) {
@@ -110,16 +117,18 @@ function App(): JSX.Element {
     }
   }, [])
 
+  console.log(vChunks)
+
   useEffect(() => {
-    if (videoStream) {
-      console.log(videoStream)
-      const vdMediaRecorder = new MediaRecorder(videoStream)
+    if (vdStream) {
+      console.log(vdStream)
+      const vdMediaRecorder = new MediaRecorder(vdStream)
       vdMediaRecorder.ondataavailable = (event): void => {
-        setVideoChuncks(() => [...videoChunks, event.data])
-        console.log('gravando')
+        setVideoChuncks((oldChunks) => [...oldChunks, event.data])
+        console.log('gravado')
       }
       vdMediaRecorder.onstart = (event): void => {
-        setIsRording(!isRecording)
+        setIsRording(true)
         console.log('Ta on')
       }
       vdMediaRecorder.onstop = (event): void => {
@@ -127,9 +136,8 @@ function App(): JSX.Element {
         console.log('Ta off')
         handleSaveData()
       }
-      setVideoMediaRecorder(vdMediaRecorder)
     }
-  }, [videoStream])
+  }, [vdStream])
 
   const selectMicId = useId()
 
@@ -141,6 +149,7 @@ function App(): JSX.Element {
           style={{ width: '100%', maxWidth: 1024, aspectRatio: 16 / 9, background: 'black' }}
           ref={webcamRef}
           autoPlay
+          muted
         ></video>
       </div>
       <div className={styles.innerWapper}>
@@ -149,7 +158,7 @@ function App(): JSX.Element {
             <Button
               style={{ background: 'green' }}
               appearance="primary"
-              onClick={handleVideoStartRecord}
+              onClick={setRrecording}
             >
               Record
             </Button>
@@ -157,7 +166,7 @@ function App(): JSX.Element {
             <Button
               style={{ background: 'red' }}
               appearance="primary"
-              onClick={handleVideoStopRecording}
+              onClick={setRrecording}
             >
               Stop
             </Button>
