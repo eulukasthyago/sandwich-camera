@@ -33,28 +33,33 @@ function App(): JSX.Element {
   const [videoStream, setVideoStream] = useState<MediaStream>()
   const [micList, setMicList] = useState<MediaDeviceInfo[]>()
   const [micSelected, setMicSelected] = useState<ConstrainDOMString>()
+  const [videoMediaRecorder, setVideoMediaRecorder] = useState<MediaRecorder>()
+  const [videoChunks, setVideoChuncks] = useState<Blob[]>([])
 
-  const handleStartWebcam = useCallback(() => {
-    if (navigator && navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices) {
-      console.log('Suportado')
-      navigator.mediaDevices
-        .getUserMedia({
-          video: { width: 1080 },
-          audio: {
-            deviceId: micSelected,
-            autoGainControl: false
-          }
-        })
-        .then((stream) => {
-          if (webcamRef.current) webcamRef.current.srcObject = stream
-          setVideoStream(stream)
-          setIsWebcamOpened(true)
-          console.log('Mic Start', micSelected)
-        })
-    } else {
-      console.log('Não Suportado')
-    }
-  }, [videoStream, isWebcamOpened, micSelected])
+  const handleStartWebcam = useCallback(
+    (micId) => {
+      if (navigator && navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices) {
+        navigator.mediaDevices
+          .getUserMedia({
+            video: { width: 1080 },
+            audio: {
+              deviceId: micId ? micId : micSelected,
+              autoGainControl: false,
+              echoCancellation: false,
+              noiseSuppression: false
+            }
+          })
+          .then((stream) => {
+            if (webcamRef.current) webcamRef.current.srcObject = stream
+            setVideoStream(stream)
+            setIsWebcamOpened(true)
+          })
+      } else {
+        console.error('Não Suportado')
+      }
+    },
+    [videoStream, isWebcamOpened, micSelected]
+  )
 
   const handleStopWebcam = useCallback(() => {
     if (videoStream?.getVideoTracks() && videoStream.getVideoTracks()[0]) {
@@ -67,21 +72,31 @@ function App(): JSX.Element {
   }, [videoStream, isWebcamOpened])
 
   const handleVideoStartRecord = useCallback(() => {
-    setIsRording(!isRecording)
-    console.log(isWebcamOpened)
-  }, [isRecording, isWebcamOpened])
+    console.log(videoMediaRecorder)
+    if (videoMediaRecorder) {
+      videoMediaRecorder.start()
+    }
+  }, [videoMediaRecorder, isRecording, isWebcamOpened])
 
   const handleVideoStopRecording = useCallback(() => {
-    setIsRording(!isRecording)
-    console.log(isWebcamOpened)
+    if (videoMediaRecorder) {
+      videoMediaRecorder.stop()
+    }
   }, [isRecording, isWebcamOpened])
 
   const handleChangeMic = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       setMicSelected(() => event.target.value)
+      if (isWebcamOpened) handleStartWebcam(event.target.value)
     },
-    [micSelected]
+    [handleStartWebcam, micSelected]
   )
+
+  const handleSaveData = (): void => {
+    const videoBlob = new Blob(videoChunks)
+    console.log(videoBlob)
+    setVideoChuncks([])
+  }
 
   useEffect(() => {
     if (navigator && navigator.mediaDevices) {
@@ -94,6 +109,27 @@ function App(): JSX.Element {
       })
     }
   }, [])
+
+  useEffect(() => {
+    if (videoStream) {
+      console.log(videoStream)
+      const vdMediaRecorder = new MediaRecorder(videoStream)
+      vdMediaRecorder.ondataavailable = (event): void => {
+        setVideoChuncks(() => [...videoChunks, event.data])
+        console.log('gravando')
+      }
+      vdMediaRecorder.onstart = (event): void => {
+        setIsRording(!isRecording)
+        console.log('Ta on')
+      }
+      vdMediaRecorder.onstop = (event): void => {
+        setIsRording(false)
+        console.log('Ta off')
+        handleSaveData()
+      }
+      setVideoMediaRecorder(vdMediaRecorder)
+    }
+  }, [videoStream])
 
   const selectMicId = useId()
 
@@ -149,7 +185,7 @@ function App(): JSX.Element {
         <Select id={selectMicId} onChange={handleChangeMic}>
           {micList?.map((item) => {
             return (
-              <option key={item.deviceId} value={item.deviceId}>
+              <option disabled={isRecording} key={item.deviceId} value={item.deviceId}>
                 {item.label}
               </option>
             )
