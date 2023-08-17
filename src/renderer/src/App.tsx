@@ -30,14 +30,16 @@ function App(): JSX.Element {
   const [isRecording, setIsRording] = useState(false)
   const [isWebcamOpened, setIsWebcamOpened] = useState(false)
 
-  const [videoStream, setVideoStream] = useState<MediaStream>()
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null)
   const [micList, setMicList] = useState<MediaDeviceInfo[]>()
   const [micSelected, setMicSelected] = useState<ConstrainDOMString>()
-  const [videoMediaRecorder, setVideoMediaRecorder] = useState<MediaRecorder>()
-  const [videoChunks, setVideoChuncks] = useState<Blob[]>([])
+  const videoMediaRecorder = useRef<MediaRecorder | null>(null)
+  const [videoChunks, setVideoChunks] = useState<Blob[]>([])
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
 
-  let  vChunks= []
-  let vdStream
+  const mimeType = 'video/webm;codecs=vp8,opus'
+
+  console.log(videoChunks)
 
   const handleStartWebcam = useCallback(
     (micId) => {
@@ -55,7 +57,6 @@ function App(): JSX.Element {
           .then((stream) => {
             if (webcamRef.current) webcamRef.current.srcObject = stream
             setVideoStream(stream)
-            vdStream = stream
             setIsWebcamOpened(true)
           })
       } else {
@@ -75,21 +76,47 @@ function App(): JSX.Element {
     }
   }, [videoStream, isWebcamOpened])
 
-  const handleVideoStartRecord = (st) => {
-    console.log(videoMediaRecorder)
-    
-  }
+  const handleVideoStartRecord = useCallback(() => {
+    if (videoStream) {
+      const vdMediaRecorder = new MediaRecorder(videoStream)
+      videoMediaRecorder.current = vdMediaRecorder
+      const localChunks: Blob[] = []
+      videoMediaRecorder.current.ondataavailable = (event): void => {
+        if (typeof event.data === 'undefined') return
+        if (event.data.size === 0) return
+        localChunks.push(event.data)
+      }
+      videoMediaRecorder.current.onstart = (event): void => {
+        setIsRording(true)
+        console.log('Ta on')
+      }
 
-  const setRrecording = ():void => {
-    setIsRording(!isRecording)
-    handleStartWebcam()
-  }
+      videoMediaRecorder.current.start()
+
+      setVideoChunks(() => localChunks)
+    }
+  }, [videoMediaRecorder, videoStream])
 
   const handleVideoStopRecording = useCallback(() => {
-    if (videoMediaRecorder) {
-      videoMediaRecorder.stop()
+    if (videoMediaRecorder.current) {
+      videoMediaRecorder.current.stop()
+      videoMediaRecorder.current.onstop = (event): void => {
+        setIsRording(false)
+        console.log('Ta off')
+        handleSaveData()
+      }
     }
-  }, [isRecording, isWebcamOpened])
+  }, [videoMediaRecorder, videoChunks])
+
+  const handleSaveData = useCallback(() => {
+    const videoBlob = new Blob(videoChunks, { type: mimeType })
+    const videoUrlBlob = URL.createObjectURL(videoBlob)
+    console.log('Blob', videoBlob)
+    console.log('Chunks', videoChunks)
+    console.log(videoUrlBlob)
+    setVideoUrl(videoUrlBlob)
+    // setVideoChuncks([])
+  }, [videoChunks, videoUrl])
 
   const handleChangeMic = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -98,12 +125,6 @@ function App(): JSX.Element {
     },
     [handleStartWebcam, micSelected]
   )
-
-  const handleSaveData = (): void => {
-    const videoBlob = new Blob(videoChunks)
-    console.log(videoBlob)
-    setVideoChuncks([])
-  }
 
   useEffect(() => {
     if (navigator && navigator.mediaDevices) {
@@ -117,27 +138,33 @@ function App(): JSX.Element {
     }
   }, [])
 
-  console.log(vChunks)
+  // console.log(vChunks)
 
-  useEffect(() => {
-    if (vdStream) {
-      console.log(vdStream)
-      const vdMediaRecorder = new MediaRecorder(vdStream)
-      vdMediaRecorder.ondataavailable = (event): void => {
-        setVideoChuncks((oldChunks) => [...oldChunks, event.data])
-        console.log('gravado')
-      }
-      vdMediaRecorder.onstart = (event): void => {
-        setIsRording(true)
-        console.log('Ta on')
-      }
-      vdMediaRecorder.onstop = (event): void => {
-        setIsRording(false)
-        console.log('Ta off')
-        handleSaveData()
-      }
-    }
-  }, [vdStream])
+  // useEffect(() => {
+  //   if (videoStream) {
+  //     console.log(videoStream)
+  //     const vdMediaRecorder = new MediaRecorder(videoStream)
+  //     videoMediaRecorder.current = vdMediaRecorder
+  //     const localChunks: Blob[] = []
+  //     videoMediaRecorder.current.ondataavailable = (event): void => {
+  //       if (typeof event.data === 'undefined') return
+  //       if (event.data.size === 0) return
+  //       localChunks.push(event.data)
+  //       console.log('gravado')
+  //     }
+  //     videoMediaRecorder.current.onstart = (event): void => {
+  //       setIsRording(true)
+  //       console.log('Ta on')
+  //     }
+  //     videoMediaRecorder.current.onstop = (event): void => {
+  //       setIsRording(false)
+  //       console.log('Ta off')
+  //       handleSaveData()
+  //     }
+
+  //     setVideoChuncks(() => localChunks)
+  //   }
+  // }, [videoStream])
 
   const selectMicId = useId()
 
@@ -151,6 +178,7 @@ function App(): JSX.Element {
           autoPlay
           muted
         ></video>
+        {videoUrl && <video src={videoUrl} controls></video>}
       </div>
       <div className={styles.innerWapper}>
         {isWebcamOpened ? (
@@ -158,7 +186,7 @@ function App(): JSX.Element {
             <Button
               style={{ background: 'green' }}
               appearance="primary"
-              onClick={setRrecording}
+              onClick={handleVideoStartRecord}
             >
               Record
             </Button>
@@ -166,7 +194,7 @@ function App(): JSX.Element {
             <Button
               style={{ background: 'red' }}
               appearance="primary"
-              onClick={setRrecording}
+              onClick={handleVideoStopRecording}
             >
               Stop
             </Button>
