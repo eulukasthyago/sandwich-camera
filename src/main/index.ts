@@ -77,10 +77,10 @@ app.on('window-all-closed', () => {
 ipcMain.on('save_buffer', (e, buffer) => {
   if (fs.existsSync(destination)) {
     const filePath = join(destination, `${Date.now()}`)
-    fs.writeFileSync(`${filePath}.webm`, buffer)
+    fs.writeFileSync(`${filePath}.webm`, Buffer.from(buffer))
   } else {
     fs.mkdirSync(destination)
     const filePath = join(destination, `${Date.now()}`)
-    fs.writeFileSync(`${filePath}.webm`, buffer)
+    fs.writeFileSync(`${filePath}.webm`, Buffer.from(buffer))
   }
 })

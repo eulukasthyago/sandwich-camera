@@ -26,6 +26,7 @@ const useStyle = makeStyles({
 function App(): JSX.Element {
   const styles = useStyle()
   const webcamRef = useRef<HTMLVideoElement>(null)
+  const videoTesteRef = useRef<HTMLVideoElement>(null)
 
   const [isRecording, setIsRording] = useState(false)
   const [isWebcamOpened, setIsWebcamOpened] = useState(false)
@@ -36,16 +37,70 @@ function App(): JSX.Element {
   const videoMediaRecorder = useRef<MediaRecorder | null>(null)
   const [videoChunks, setVideoChunks] = useState<Blob[]>([])
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  // const { ipcRenderer } = window.electron
+  const { ipcRenderer } = window.electron
 
   const mimeType = 'video/webm;codecs=vp8,opus'
+
+  const handleCanvaVideo = (): MediaStream => {
+    const canvasVideo = document.createElement('canvas')
+    Object.assign(canvasVideo, { width: 0, height: 0 })
+    const ctx = canvasVideo.getContext('2d')
+
+    console.log('Local 1')
+    console.log(canvasVideo)
+
+    const drawOnCanva = (image, width, height): void => {
+      if (canvasVideo.width !== width || canvasVideo.height !== height) {
+        canvasVideo.width = width
+        canvasVideo.height = height
+      }
+      console.log('Local 2')
+      ctx?.clearRect(0, 0, width, height)
+      ctx?.drawImage(image, 0, 0)
+    }
+
+    console.log('Local 3')
+
+    const vid = document.createElement('video')
+    vid.srcObject = videoStream
+
+    console.log(vid)
+
+    console.log('Local 4')
+
+    const scheduler = vid.requestVideoFrameCallback
+      ? (cb): number => vid.requestVideoFrameCallback(cb)
+      : requestAnimationFrame
+
+    console.log('Local 5')
+
+    const draw = (): void => {
+      const { videoWidth, videoHeight } = vid
+      console.log('Esta Rodando')
+      drawOnCanva(vid, videoWidth, videoHeight)
+      scheduler(draw)
+    }
+
+    try {
+      vid.play()
+      draw()
+      console.log('Local 6')
+      console.log(vid.play())
+    } catch (e) {
+      console.log(e)
+    }
+
+    console.log('Local 7')
+
+    return canvasVideo.captureStream()
+  }
 
   const handleStartWebcam = useCallback(
     (micId) => {
       if (navigator && navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices) {
         navigator.mediaDevices
           .getUserMedia({
-            video: { width: 1080 },
+            video: { width: 1280, height: 720 },
             audio: {
               deviceId: micId ? micId : micSelected,
               autoGainControl: false,
@@ -54,7 +109,9 @@ function App(): JSX.Element {
             }
           })
           .then((stream) => {
+            console.log(handleCanvaVideo())
             if (webcamRef.current) webcamRef.current.srcObject = stream
+            if (videoTesteRef.current) videoTesteRef.current.srcObject = handleCanvaVideo()
             setVideoStream(stream)
             setIsWebcamOpened(true)
           })
@@ -117,8 +174,8 @@ function App(): JSX.Element {
     setVideoChunks([])
     videoBlob.arrayBuffer().then((blobBuffer) => {
       try {
-        const VBbuffer = Buffer.from(blobBuffer)
-        // ipcRenderer.send('save_buffer', VBbuffer)
+        // const VBbuffer = Buffer.from(blobBuffer)
+        ipcRenderer.send('save_buffer', blobBuffer)
       } catch (e) {
         console.log(e)
       }
@@ -152,10 +209,19 @@ function App(): JSX.Element {
       <div style={{ flex: 1 }}>
         <video
           id="videoWebcam"
-          style={{ width: '100%', maxWidth: 1024, aspectRatio: 16 / 9, background: 'black' }}
+          style={{ width: '100%', maxWidth: 360, aspectRatio: 16 / 9, background: 'black' }}
           ref={webcamRef}
           autoPlay
           muted
+          controls
+        ></video>
+        <video
+          id="videoCanva"
+          style={{ width: '100%', maxWidth: 360, aspectRatio: 16 / 9, background: 'black' }}
+          ref={videoTesteRef}
+          autoPlay
+          muted
+          controls
         ></video>
         {videoUrl && <video src={videoUrl} controls></video>}
       </div>
