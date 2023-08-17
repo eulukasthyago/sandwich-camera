@@ -39,6 +39,8 @@ function App(): JSX.Element {
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const { ipcRenderer } = window.electron
 
+  const videoCanvasRef = useRef(null)
+
   const mimeType = 'video/webm;codecs=vp8,opus'
 
   const handleCanvaVideo = (): MediaStream => {
@@ -72,6 +74,7 @@ function App(): JSX.Element {
       ? (cb): number => vid.requestVideoFrameCallback(cb)
       : requestAnimationFrame
 
+    console.log(scheduler)
     console.log('Local 5')
 
     const draw = (): void => {
@@ -81,16 +84,8 @@ function App(): JSX.Element {
       scheduler(draw)
     }
 
-    try {
-      vid.play()
-      draw()
-      console.log('Local 6')
-      console.log(vid.play())
-    } catch (e) {
-      console.log(e)
-    }
-
-    console.log('Local 7')
+    // vid.play().then(draw)
+    webcamRef.current.play().then(draw)
 
     return canvasVideo.captureStream()
   }
