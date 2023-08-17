@@ -1,5 +1,6 @@
 import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { Buffer } from 'node:buffer'
 
 // Custom APIs for renderer
 const api = {}
@@ -11,6 +12,7 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('Buffer', window.Buffer || Buffer)
   } catch (error) {
     console.error(error)
   }
@@ -19,4 +21,5 @@ if (process.contextIsolated) {
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
+  window.Buffer = window.Buffer || Buffer
 }

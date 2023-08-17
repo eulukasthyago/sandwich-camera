@@ -36,10 +36,9 @@ function App(): JSX.Element {
   const videoMediaRecorder = useRef<MediaRecorder | null>(null)
   const [videoChunks, setVideoChunks] = useState<Blob[]>([])
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  // const { ipcRenderer } = window.electron
 
   const mimeType = 'video/webm;codecs=vp8,opus'
-
-  console.log(videoChunks)
 
   const handleStartWebcam = useCallback(
     (micId) => {
@@ -115,7 +114,15 @@ function App(): JSX.Element {
     console.log('Chunks', videoChunks)
     console.log(videoUrlBlob)
     setVideoUrl(videoUrlBlob)
-    // setVideoChuncks([])
+    setVideoChunks([])
+    videoBlob.arrayBuffer().then((blobBuffer) => {
+      try {
+        const VBbuffer = Buffer.from(blobBuffer)
+        // ipcRenderer.send('save_buffer', VBbuffer)
+      } catch (e) {
+        console.log(e)
+      }
+    })
   }, [videoChunks, videoUrl])
 
   const handleChangeMic = useCallback(
@@ -137,34 +144,6 @@ function App(): JSX.Element {
       })
     }
   }, [])
-
-  // console.log(vChunks)
-
-  // useEffect(() => {
-  //   if (videoStream) {
-  //     console.log(videoStream)
-  //     const vdMediaRecorder = new MediaRecorder(videoStream)
-  //     videoMediaRecorder.current = vdMediaRecorder
-  //     const localChunks: Blob[] = []
-  //     videoMediaRecorder.current.ondataavailable = (event): void => {
-  //       if (typeof event.data === 'undefined') return
-  //       if (event.data.size === 0) return
-  //       localChunks.push(event.data)
-  //       console.log('gravado')
-  //     }
-  //     videoMediaRecorder.current.onstart = (event): void => {
-  //       setIsRording(true)
-  //       console.log('Ta on')
-  //     }
-  //     videoMediaRecorder.current.onstop = (event): void => {
-  //       setIsRording(false)
-  //       console.log('Ta off')
-  //       handleSaveData()
-  //     }
-
-  //     setVideoChuncks(() => localChunks)
-  //   }
-  // }, [videoStream])
 
   const selectMicId = useId()
 
