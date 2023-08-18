@@ -26,7 +26,8 @@ const useStyle = makeStyles({
 function App(): JSX.Element {
   const styles = useStyle()
   const webcamRef = useRef<HTMLVideoElement>(null)
-  const videoTesteRef = useRef<HTMLVideoElement>(null)
+  const videoStreamRef = useRef<MediaStream | null>(null)
+  const videoCanvasStreamRef = useRef<MediaStream | null>(null)
 
   const [isRecording, setIsRording] = useState(false)
   const [isWebcamOpened, setIsWebcamOpened] = useState(false)
@@ -41,48 +42,49 @@ function App(): JSX.Element {
 
   const videoCanvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const vidRef = useRef<HTMLVideoElement>(document.createElement('video'))
+  Object.assign(videoCanvasRef.current, { width: 0, height: 0 })
+  const ctx = videoCanvasRef.current.getContext('2d')
+
+  const scheduler = vidRef.current.requestVideoFrameCallback
+    ? (cb): number => vidRef.current.requestVideoFrameCallback(cb)
+    : requestAnimationFrame
 
   const mimeType = 'video/webm;codecs=vp8,opus'
 
-  const handleCanvaVideo = (): MediaStream => {
-    Object.assign(videoCanvasRef.current, { width: 0, height: 0 })
-    const ctx = videoCanvasRef.current.getContext('2d')
-
-    const drawOnCanva = (image, width, height): void => {
-      if (videoCanvasRef.current) {
-        if (videoCanvasRef.current.width !== width || videoCanvasRef.current.height !== height) {
-          videoCanvasRef.current.width = width
-          videoCanvasRef.current.height = height
-        }
-      }
-      if (ctx) {
-        ctx.fillStyle = 'red'
-        ctx.fillRect(0, 0, 100, 100)
-        ctx.clearRect(0, 0, 300, 300)
-        ctx.drawImage(image, 0, 0)
+  const handleDrawImageCanvaVideo = (image, width, height): void => {
+    if (videoCanvasRef.current) {
+      if (videoCanvasRef.current.width !== width || videoCanvasRef.current.height !== height) {
+        videoCanvasRef.current.width = width
+        videoCanvasRef.current.height = height
       }
     }
-
-    // vidRef.current.srcObject = videoStream
-
-    const scheduler = vidRef.current.requestVideoFrameCallback
-      ? (cb): number => vidRef.current.requestVideoFrameCallback(cb)
-      : requestAnimationFrame
-
-    const draw = (): void => {
-      const { videoWidth, videoHeight } = vidRef.current
-      console.log('Esta Rodando')
-      drawOnCanva(vidRef.current, videoWidth, videoHeight)
-      scheduler(draw)
-      console.log(videoCanvasRef.current.width)
-      console.log(videoWidth, videoHeight)
+    if (ctx) {
+      ctx.clearRect(0, 0, 300, 300)
+      ctx.drawImage(image, 0, 0)
+      ctx.fillStyle = 'red'
+      ctx.fillRect(0, 0, 100, 100)
     }
-    console.log('Olár')
-    setTimeout(function () {
+  }
+
+  const draw = (): void => {
+    const { videoWidth, videoHeight } = vidRef.current
+    handleDrawImageCanvaVideo(vidRef.current, videoWidth, videoHeight)
+    scheduler(draw)
+  }
+
+  const handleAddAudioInCanvasVideo = (): void => {
+    if (videoStreamRef.current && videoCanvasStreamRef.current) {
+      videoCanvasStreamRef.current.addTrack(videoStreamRef.current.getAudioTracks()[0])
+    }
+  }
+
+  const handleStartCanvaVideo = (): void => {
+    videoCanvasStreamRef.current = videoCanvasRef.current.captureStream()
+    handleAddAudioInCanvasVideo()
+    setTimeout(() => {
+      vidRef.current.muted = true
       vidRef.current.play().then(draw)
     }, 0)
-
-    return videoCanvasRef.current.captureStream()
   }
 
   const handleStartWebcam = useCallback(
@@ -99,9 +101,10 @@ function App(): JSX.Element {
             }
           })
           .then((stream) => {
-            if (webcamRef.current) webcamRef.current.srcObject = stream
-            if (videoTesteRef.current) videoTesteRef.current.srcObject = handleCanvaVideo()
             vidRef.current.srcObject = stream
+            if (webcamRef.current) webcamRef.current.srcObject = videoCanvasStreamRef.current
+            videoStreamRef.current = stream
+            handleStartCanvaVideo()
             setVideoStream(stream)
             setIsWebcamOpened(true)
           })
@@ -113,18 +116,18 @@ function App(): JSX.Element {
   )
 
   const handleStopWebcam = useCallback(() => {
-    if (videoStream?.getVideoTracks() && videoStream.getVideoTracks()[0]) {
-      videoStream.getVideoTracks()[0].stop()
+    if (videoStreamRef.current?.getVideoTracks() && videoStreamRef.current.getVideoTracks()[0]) {
+      videoStreamRef.current.getVideoTracks()[0].stop()
       setIsWebcamOpened(!isWebcamOpened)
     }
-    if (videoStream?.getAudioTracks()[0]) {
-      videoStream?.getAudioTracks()[0].stop()
+    if (videoStreamRef.current?.getAudioTracks()[0]) {
+      videoStreamRef.current?.getAudioTracks()[0].stop()
     }
-  }, [videoStream, isWebcamOpened])
+  }, [isWebcamOpened])
 
   const handleVideoStartRecord = useCallback(() => {
-    if (videoStream) {
-      const vdMediaRecorder = new MediaRecorder(videoStream)
+    if (videoCanvasStreamRef.current) {
+      const vdMediaRecorder = new MediaRecorder(videoCanvasStreamRef.current)
       videoMediaRecorder.current = vdMediaRecorder
       const localChunks: Blob[] = []
       videoMediaRecorder.current.ondataavailable = (event): void => {
@@ -135,13 +138,14 @@ function App(): JSX.Element {
       videoMediaRecorder.current.onstart = (event): void => {
         setIsRording(true)
         console.log('Ta on')
+        console.log(videoCanvasRef)
       }
 
       videoMediaRecorder.current.start()
 
       setVideoChunks(() => localChunks)
     }
-  }, [videoMediaRecorder, videoStream])
+  }, [videoMediaRecorder])
 
   const handleVideoStopRecording = useCallback(() => {
     if (videoMediaRecorder.current) {
@@ -192,16 +196,6 @@ function App(): JSX.Element {
     }
   }, [])
 
-  useEffect(() => {
-    const ctx = videoCanvasRef.current.getContext('2d')
-    if (ctx) {
-      ctx.fillStyle = 'red'
-      ctx.fillRect(0, 0, 100, 100)
-    }
-    if (videoTesteRef.current)
-      videoTesteRef.current.srcObject = videoCanvasRef.current.captureStream()
-  }, [])
-
   const selectMicId = useId()
 
   return (
@@ -211,14 +205,6 @@ function App(): JSX.Element {
           id="videoWebcam"
           style={{ width: '100%', maxWidth: 360, aspectRatio: 16 / 9, background: 'black' }}
           ref={webcamRef}
-          autoPlay
-          muted
-          controls
-        ></video>
-        <video
-          id="videoCanva"
-          style={{ width: '100%', maxWidth: 360, aspectRatio: 16 / 9, background: 'gray' }}
-          ref={videoTesteRef}
           autoPlay
           muted
           controls
