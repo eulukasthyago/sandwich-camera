@@ -39,55 +39,50 @@ function App(): JSX.Element {
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const { ipcRenderer } = window.electron
 
-  const videoCanvasRef = useRef(null)
+  const videoCanvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'))
+  const vidRef = useRef<HTMLVideoElement>(document.createElement('video'))
 
   const mimeType = 'video/webm;codecs=vp8,opus'
 
   const handleCanvaVideo = (): MediaStream => {
-    const canvasVideo = document.createElement('canvas')
-    Object.assign(canvasVideo, { width: 0, height: 0 })
-    const ctx = canvasVideo.getContext('2d')
-
-    console.log('Local 1')
-    console.log(canvasVideo)
+    Object.assign(videoCanvasRef.current, { width: 0, height: 0 })
+    const ctx = videoCanvasRef.current.getContext('2d')
 
     const drawOnCanva = (image, width, height): void => {
-      if (canvasVideo.width !== width || canvasVideo.height !== height) {
-        canvasVideo.width = width
-        canvasVideo.height = height
+      if (videoCanvasRef.current) {
+        if (videoCanvasRef.current.width !== width || videoCanvasRef.current.height !== height) {
+          videoCanvasRef.current.width = width
+          videoCanvasRef.current.height = height
+        }
       }
-      console.log('Local 2')
-      ctx?.clearRect(0, 0, width, height)
-      ctx?.drawImage(image, 0, 0)
+      if (ctx) {
+        ctx.fillStyle = 'red'
+        ctx.fillRect(0, 0, 100, 100)
+        ctx.clearRect(0, 0, 300, 300)
+        ctx.drawImage(image, 0, 0)
+      }
     }
 
-    console.log('Local 3')
+    // vidRef.current.srcObject = videoStream
 
-    const vid = document.createElement('video')
-    vid.srcObject = videoStream
-
-    console.log(vid)
-
-    console.log('Local 4')
-
-    const scheduler = vid.requestVideoFrameCallback
-      ? (cb): number => vid.requestVideoFrameCallback(cb)
+    const scheduler = vidRef.current.requestVideoFrameCallback
+      ? (cb): number => vidRef.current.requestVideoFrameCallback(cb)
       : requestAnimationFrame
 
-    console.log(scheduler)
-    console.log('Local 5')
-
     const draw = (): void => {
-      const { videoWidth, videoHeight } = vid
+      const { videoWidth, videoHeight } = vidRef.current
       console.log('Esta Rodando')
-      drawOnCanva(vid, videoWidth, videoHeight)
+      drawOnCanva(vidRef.current, videoWidth, videoHeight)
       scheduler(draw)
+      console.log(videoCanvasRef.current.width)
+      console.log(videoWidth, videoHeight)
     }
+    console.log('Olár')
+    setTimeout(function () {
+      vidRef.current.play().then(draw)
+    }, 0)
 
-    // vid.play().then(draw)
-    webcamRef.current.play().then(draw)
-
-    return canvasVideo.captureStream()
+    return videoCanvasRef.current.captureStream()
   }
 
   const handleStartWebcam = useCallback(
@@ -104,9 +99,9 @@ function App(): JSX.Element {
             }
           })
           .then((stream) => {
-            console.log(handleCanvaVideo())
             if (webcamRef.current) webcamRef.current.srcObject = stream
             if (videoTesteRef.current) videoTesteRef.current.srcObject = handleCanvaVideo()
+            vidRef.current.srcObject = stream
             setVideoStream(stream)
             setIsWebcamOpened(true)
           })
@@ -197,6 +192,16 @@ function App(): JSX.Element {
     }
   }, [])
 
+  useEffect(() => {
+    const ctx = videoCanvasRef.current.getContext('2d')
+    if (ctx) {
+      ctx.fillStyle = 'red'
+      ctx.fillRect(0, 0, 100, 100)
+    }
+    if (videoTesteRef.current)
+      videoTesteRef.current.srcObject = videoCanvasRef.current.captureStream()
+  }, [])
+
   const selectMicId = useId()
 
   return (
@@ -212,7 +217,7 @@ function App(): JSX.Element {
         ></video>
         <video
           id="videoCanva"
-          style={{ width: '100%', maxWidth: 360, aspectRatio: 16 / 9, background: 'black' }}
+          style={{ width: '100%', maxWidth: 360, aspectRatio: 16 / 9, background: 'gray' }}
           ref={videoTesteRef}
           autoPlay
           muted
